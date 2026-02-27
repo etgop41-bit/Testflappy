@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>DareMarket Flappy</title>
+  <link rel="preload" href="assets/character.png" as="image"/>
+  <link rel="preload" href="assets/logo.jpg" as="image"/>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Rajdhani', sans-serif;
+      touch-action: none;
+    }
+
+    #game-wrapper {
+      position: relative;
+      width: min(480px, 100vw);
+      height: min(640px, 100vh);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 2px solid #ff1a1a;
+      box-shadow: 0 0 40px #ff1a1a66, 0 0 80px #ff000033;
+    }
+
+    #score-display {
+      position: absolute;
+      top: 20px; width: 100%;
+      text-align: center;
+      font-family: 'Bebas Neue', cursive, sans-serif;
+      font-size: 72px;
+      color: #fff;
+      text-shadow: 0 0 20px #ff1a1a, 0 2px 0 #000;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    #mute-btn {
+      position: absolute;
+      top: 12px; right: 12px;
+      background: rgba(255,26,26,0.2);
+      border: 1px solid #ff1a1a;
+      color: #ff1a1a;
+      font-size: 20px;
+      padding: 6px 10px;
+      cursor: pointer;
+      border-radius: 4px;
+      z-index: 50;
+    }
+
+    /* ── Screens ── */
+    .game-screen {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.85);
+      z-index: 20;
+    }
+    .game-screen.hidden { display: none; }
+
+    .screen-logo img {
+      width: 90px; height: 90px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 20px #ff1a1a);
+      animation: logoPulse 2s infinite;
+      margin-bottom: 14px;
+    }
+
+    @keyframes logoPulse {
+      0%,100% { filter: drop-shadow(0 0 15px #ff1a1a); transform: scale(1); }
+      50%      { filter: drop-shadow(0 0 35px #ff4444); transform: scale(1.06); }
+    }
+
+    .screen-title {
+      font-family: 'Bebas Neue', cursive, sans-serif;
+      font-size: 54px;
+      color: #ff1a1a;
+      text-shadow: 0 0 30px #ff000099;
+      letter-spacing: 6px;
+      margin-bottom: 4px;
+    }
+
+    .screen-subtitle {
+      font-size: 16px; color: #aaa;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    .screen-best { margin-top: 12px; font-size: 18px; color: #888; letter-spacing: 2px; }
+    .screen-best span { color: #ff4444; font-weight: bold; }
+
+    .btn {
+      cursor: pointer;
+      font-family: 'Bebas Neue', cursive, sans-serif;
+      font-size: 26px; letter-spacing: 4px;
+      padding: 12px 44px;
+      background: #ff1a1a; color: #fff;
+      border: none; border-radius: 2px;
+      box-shadow: 0 0 20px #ff000066;
+      transition: all 0.15s; margin: 6px 0;
+    }
+    .btn:hover  { background: #ff3333; }
+    .btn:active { transform: scale(0.97); }
+
+    /* ── Death Screen ── */
+    .cat-wrap {
+      font-size: 110px; line-height: 1;
+      margin-bottom: 10px;
+      animation: catLaugh 0.35s ease infinite alternate;
+    }
+    @keyframes catLaugh {
+      0%   { transform: scale(1)    rotate(-4deg); }
+      100% { transform: scale(1.08) rotate(4deg);  }
+    }
+
+    #death-screen .screen-title {
+      font-size: 58px;
+      animation: glitch 0.25s infinite;
+    }
+    @keyframes glitch {
+      0%  { text-shadow:  0    0 30px #ff0000, 0 0 60px #ff000066; transform: translate(0,0);   }
+      25% { text-shadow:  3px  0 #ff0000, -3px 0 #0ff;             transform: translate(-2px,0); }
+      50% { text-shadow: -3px  0 #ff0000,  3px 0 #f0f;             transform: translate(2px,0);  }
+      75% { text-shadow:  0    0 30px #ff0000;                      transform: translate(0,0);   }
+    }
+
+    .death-score-big {
+      font-family: 'Bebas Neue', cursive, sans-serif;
+      font-size: 64px; color: #fff;
+      text-shadow: 0 0 20px #fff;
+      line-height: 1;
+    }
+    .death-score-label {
+      font-size: 14px; color: #666;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+  <canvas id="gameCanvas" width="480" height="640"></canvas>
+  <div id="score-display">0</div>
+  <button id="mute-btn">🔊</button>
+
+  <!-- Start Screen -->
+  <div id="start-screen" class="game-screen">
+    <div class="screen-logo"><img src="assets/logo.jpg" alt="DareMarket"/></div>
+    <div class="screen-title">DareMarket</div>
+    <div class="screen-subtitle">Flappy Edition</div>
+    <button class="btn" id="play-btn">PLAY</button>
+    <div style="font-size:13px;color:#555;letter-spacing:2px;margin-top:10px;">TAP · CLICK · SPACE to fly</div>
+    <div class="screen-best">BEST: <span id="start-best">0</span></div>
+  </div>
+
+  <!-- Death Screen -->
+  <div id="death-screen" class="game-screen hidden">
+    <div class="cat-wrap">😹</div>
+    <div class="screen-title">YOU LOST FAG</div>
+    <div class="death-score-big" id="death-score">0</div>
+    <div class="death-score-label">SCORE</div>
+    <div class="screen-best">BEST: <span id="death-best">0</span></div>
+    <button class="btn" id="retry-btn">TRY AGAIN</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  IMAGES  — loaded from assets/ folder (NOT embedded)
+//  This ensures they always display correctly
+// ═══════════════════════════════════════════════════════
+const logoImg = new Image();
+const charImg = new Image();
+
+// Track load state
+let assetsReady = 0;
+logoImg.onload = charImg.onload = () => { assetsReady++; };
+logoImg.onerror = () => console.warn('logo failed to load');
+charImg.onerror = () => console.warn('character failed to load');
+
+logoImg.src = 'assets/logo.jpg';
+charImg.src = 'assets/character.png';
+
+// ═══════════════════════════════════════════════════════
+//  AUDIO  — Web Audio API, no external files
+// ═══════════════════════════════════════════════════════
+const audioCtx   = new (window.AudioContext || window.webkitAudioContext)();
+const masterGain = audioCtx.createGain();
+masterGain.gain.value = 0.4;
+masterGain.connect(audioCtx.destination);
+
+let muted = false;
+let playingMusic = false;
+let melodyTimer = null, bassTimer = null;
+let tempo = 160;
+
+const MELODY = [
+  [392,.12],[440,.12],[523,.12],[440,.12],
+  [392,.12],[330,.12],[294,.24],[0,.12],
+  [349,.12],[392,.12],[440,.12],[523,.12],
+  [587,.24],[523,.12],[440,.12],[0,.12],
+];
+const BASS = [
+  [196,.24],[196,.24],[220,.24],[175,.24],
+  [196,.24],[196,.24],[220,.48],
+];
+
+function beep(freq, type, dur, vol, t) {
+  if (!freq) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(masterGain);
+  o.start(t); o.stop(t + dur);
+}
+
+function playNote(arr, idx, isBass) {
+  if (!playingMusic) return;
+  const note = arr[idx % arr.length];
+  const bps  = tempo / 60;
+  beep(note[0], isBass ? 'triangle' : 'square', note[1]*.9, isBass ? .35 : .25, audioCtx.currentTime);
+  const h = setTimeout(() => playNote(arr, idx+1, isBass), (note[1]/bps)*1000);
+  if (isBass) bassTimer = h; else melodyTimer = h;
+}
+
+function startMusic() {
+  stopMusic(); playingMusic = true; tempo = 160;
+  playNote(MELODY, 0, false);
+  setTimeout(() => playNote(BASS, 0, true), 200);
+}
+
+function stopMusic() {
+  playingMusic = false;
+  clearTimeout(melodyTimer); clearTimeout(bassTimer);
+}
+
+function sfxFlap()  {
+  const t = audioCtx.currentTime;
+  beep(400,'square',.08,.3,t); beep(600,'square',.06,.2,t+.03);
+}
+function sfxScore() {
+  const t = audioCtx.currentTime;
+  beep(523,'square',.1,.4,t); beep(659,'square',.1,.4,t+.1); beep(784,'square',.15,.4,t+.2);
+}
+function sfxDeath() {
+  const t = audioCtx.currentTime;
+  beep(300,'sawtooth',.15,.5,t); beep(200,'sawtooth',.2,.5,t+.12); beep(100,'sawtooth',.35,.5,t+.28);
+}
+
+document.getElementById('mute-btn').addEventListener('click', () => {
+  muted = !muted;
+  masterGain.gain.value = muted ? 0 : 0.4;
+  document.getElementById('mute-btn').textContent = muted ? '🔇' : '🔊';
+});
+
+// ═══════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const W = 480, H = 640, GROUND_H = 60;
+
+const BW = 42, BH = 58;     // bird size
+const GRAVITY  = 0.35;
+const JUMP_VEL = -7.5;
+const MAX_FALL = 12;
+const HIT_PAD  = 10;        // collision forgiveness
+
+const PIPE_W  = 78;
+const GAP     = 160;
+const P_SPEED = 2.8;
+const P_INTER = 110;
+const CAP_H   = 26;
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let state = 'start', score = 0, bestScore = 0, animFrame;
+let bird  = { x:120, y:H/2, vy:0 };
+let pipes = [], pipeTimer = 0, groundOff = 0;
+
+const stars = Array.from({length:50}, () => ({
+  x: Math.random()*W,
+  y: Math.random()*(H-GROUND_H),
+  r: Math.random()*1.5+.5,
+  a: Math.random()*Math.PI*2
+}));
+
+const scoreEl  = document.getElementById('score-display');
+const startScr = document.getElementById('start-screen');
+const deathScr = document.getElementById('death-screen');
+
+// ═══════════════════════════════════════════════════════
+//  DRAW
+// ═══════════════════════════════════════════════════════
+function drawBg() {
+  const g = ctx.createLinearGradient(0,0,0,H-GROUND_H);
+  g.addColorStop(0,'#050010'); g.addColorStop(1,'#150020');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H-GROUND_H);
+
+  stars.forEach(s => {
+    s.a += .015;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,80,80,${(.3+.4*Math.sin(s.a)).toFixed(2)})`;
+    ctx.fill();
+  });
+}
+
+function drawGround() {
+  if (state === 'playing') groundOff = (groundOff + P_SPEED) % 40;
+  const g = ctx.createLinearGradient(0,H-GROUND_H,0,H);
+  g.addColorStop(0,'#1a0505'); g.addColorStop(1,'#0a0000');
+  ctx.fillStyle = g; ctx.fillRect(0,H-GROUND_H,W,GROUND_H);
+  ctx.strokeStyle='#ff1a1a'; ctx.lineWidth=2;
+  ctx.shadowColor='#ff1a1a'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.moveTo(0,H-GROUND_H); ctx.lineTo(W,H-GROUND_H); ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#ff1a1a55'; ctx.font='bold 12px Rajdhani,sans-serif';
+  const txt='DARE MARKET • ', tw=ctx.measureText(txt).width;
+  for (let x=-(groundOff%tw); x<W+tw; x+=tw) ctx.fillText(txt,x,H-18);
+}
+
+function drawPipe(p) {
+  const botY=p.topH+GAP, botH=H-GROUND_H-botY;
+  const gr=ctx.createLinearGradient(p.x,0,p.x+PIPE_W,0);
+  gr.addColorStop(0,'#0d0000'); gr.addColorStop(.3,'#2a0000');
+  gr.addColorStop(.7,'#200000'); gr.addColorStop(1,'#0d0000');
+
+  ctx.fillStyle=gr;
+  ctx.fillRect(p.x,0,PIPE_W,p.topH);
+  ctx.fillRect(p.x,botY,PIPE_W,botH);
+  ctx.strokeStyle='#ff1a1a'; ctx.lineWidth=2;
+  ctx.shadowColor='#ff1a1a'; ctx.shadowBlur=8;
+  ctx.strokeRect(p.x,0,PIPE_W,p.topH);
+  ctx.strokeRect(p.x,botY,PIPE_W,botH);
+
+  const cx=p.x-4, cw=PIPE_W+8;
+  ctx.fillStyle='#ff1a1a22';
+  ctx.fillRect(cx,p.topH-CAP_H,cw,CAP_H); ctx.fillRect(cx,botY,cw,CAP_H);
+  ctx.strokeRect(cx,p.topH-CAP_H,cw,CAP_H); ctx.strokeRect(cx,botY,cw,CAP_H);
+  ctx.shadowBlur=0;
+
+  // Logo on pipe faces — only draw when image is loaded
+  if (logoImg.complete && logoImg.naturalWidth > 0) {
+    const ls=PIPE_W;
+    const ty=p.topH-CAP_H-ls;
+    if (ty>0) { ctx.save(); ctx.beginPath(); ctx.rect(p.x,ty,PIPE_W,ls); ctx.clip(); ctx.drawImage(logoImg,p.x,ty,ls,ls); ctx.restore(); }
+    const by2=botY+CAP_H;
+    if (by2+ls<H-GROUND_H) { ctx.save(); ctx.beginPath(); ctx.rect(p.x,by2,PIPE_W,ls); ctx.clip(); ctx.drawImage(logoImg,p.x,by2,ls,ls); ctx.restore(); }
+  }
+}
+
+function drawBird() {
+  ctx.save();
+  ctx.translate(bird.x, bird.y);
+  ctx.rotate(Math.max(-.45, Math.min(1.2, bird.vy*.06)));
+  if (charImg.complete && charImg.naturalWidth > 0) {
+    ctx.drawImage(charImg, -BW/2, -BH/2, BW, BH);
+  } else {
+    // Fallback circle until image loads
+    ctx.fillStyle='#ff1a1a';
+    ctx.beginPath(); ctx.arc(0,0,18,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════════════════════════
+function loop() {
+  ctx.clearRect(0,0,W,H);
+  drawBg();
+
+  if (state === 'playing') {
+    // Spawn pipes
+    if (++pipeTimer >= P_INTER) {
+      pipes.push({ x:W+20, topH:60+Math.random()*(H-GROUND_H-GAP-80), scored:false });
+      pipeTimer=0;
+    }
+    pipes.forEach(p => p.x -= P_SPEED);
+    pipes = pipes.filter(p => p.x+PIPE_W+4 > -10);
+
+    // Score check
+    pipes.forEach(p => {
+      if (!p.scored && p.x+PIPE_W < bird.x) {
+        p.scored=true; score++;
+        scoreEl.textContent=score;
+        sfxScore();
+        tempo = Math.min(300, 160+score*5);
+      }
+    });
+
+    // Physics
+    bird.vy = Math.min(bird.vy+GRAVITY, MAX_FALL);
+    bird.y += bird.vy;
+
+    // Collision detection
+    const bx=bird.x-BW/2+HIT_PAD, bw=BW-HIT_PAD*2;
+    const by=bird.y-BH/2+HIT_PAD, bh=BH-HIT_PAD*2;
+    const dead =
+      bird.y+BH/2 > H-GROUND_H || bird.y-BH/2 < -10 ||
+      pipes.some(p => bx+bw > p.x-4 && bx < p.x+PIPE_W+4 && (by < p.topH || by+bh > p.topH+GAP));
+
+    if (dead) {
+      state='dead';
+      if (score>bestScore) bestScore=score;
+      stopMusic(); sfxDeath();
+      showDeath();
+      loop(); return;
+    }
+  }
+
+  pipes.forEach(drawPipe);
+  drawBird();
+  drawGround();
+  animFrame = requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SCREENS
+// ═══════════════════════════════════════════════════════
+function showDeath() {
+  document.getElementById('death-score').textContent = score;
+  document.getElementById('death-best').textContent  = bestScore;
+  deathScr.classList.remove('hidden');
+  setTimeout(() => roast(score), 700);
+}
+
+const roastLines = [
+  s => `Ha ha ha! You lost fag! Your pathetic score was ${s}. Embarrassing!`,
+  s => `Only ${s}? My grandma plays better than you, fag!`,
+  s => `${s} points? That is all you got? Get better, fag!`,
+  s => `Ha! Score of ${s}? Come on fag, even a potato does better!`,
+];
+
+function roast(s) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(roastLines[s % roastLines.length](s));
+  u.rate=1.1; u.pitch=1.4; u.volume=1;
+  window.speechSynthesis.speak(u);
+}
+
+function startGame() {
+  if (audioCtx.state==='suspended') audioCtx.resume();
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  startScr.classList.add('hidden');
+  deathScr.classList.add('hidden');
+  score=0; pipeTimer=0; pipes=[];
+  bird={x:120, y:H/2, vy:-3};
+  scoreEl.textContent='0';
+  document.getElementById('start-best').textContent=bestScore;
+  state='playing';
+  cancelAnimationFrame(animFrame);
+  startMusic(); loop();
+}
+
+// ═══════════════════════════════════════════════════════
+//  INPUT
+// ═══════════════════════════════════════════════════════
+function flap() {
+  if (audioCtx.state==='suspended') audioCtx.resume();
+  if (state==='start')   { startGame(); return; }
+  if (state==='playing') { bird.vy=JUMP_VEL; sfxFlap(); }
+}
+
+document.getElementById('play-btn').addEventListener('click',  startGame);
+document.getElementById('retry-btn').addEventListener('click', startGame);
+document.addEventListener('keydown', e => {
+  if (e.code==='Space'||e.code==='ArrowUp') { e.preventDefault(); flap(); }
+});
+canvas.addEventListener('click', flap);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, {passive:false});
+
+// ── Boot ──
+bird = {x:120, y:H/2, vy:0};
+loop();
+</script>
+</body>
+</html>
